@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { MessageSquare, CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
+import { MessageSquare, CheckCircle, XCircle, AlertCircle, Clock, Plus, Trash2, Tag } from 'lucide-react';
 import { toast } from 'sonner';
+import Select from 'react-select';
 import api from '../lib/api';
 import { useAuth } from '../lib/useAuth';
 import { Button } from '../components/ui/button';
@@ -23,7 +24,7 @@ import {
     DialogTitle,
 } from '../components/ui/dialog';
 import {
-    Select,
+    Select as ShadcnSelect,
     SelectContent,
     SelectItem,
     SelectTrigger,
@@ -31,6 +32,8 @@ import {
 } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import InspectionFilters from '../components/InspectionFilters';
+
+// ==================== Types ====================
 
 type Inspection = {
     id: string;
@@ -42,20 +45,62 @@ type Inspection = {
     customer_decision: string;
     customer_feedback_comments: string;
     customer_feedback_date: string;
+    specialized_remarks: string;
+    customer_issues_count: number;
     created_at: string;
     created_by_username: string;
+};
+
+type StandardizedDefect = {
+    id: string;
+    category: string;
+    defect_name: string;
+    severity: string;
+};
+
+type CustomerIssue = {
+    id?: string;
+    standardized_defect: string;
+    defect_name: string;
+    defect_category: string;
+    defect_severity: string;
+    status: string;
 };
 
 type FeedbackForm = {
     customer_decision: string;
     customer_feedback_comments: string;
+    specialized_remarks: string;
 };
+
+// ==================== Category colors ====================
+const CATEGORY_COLORS: Record<string, string> = {
+    'Fabric': 'bg-amber-100 text-amber-800 border-amber-200',
+    'Workmanship': 'bg-blue-100 text-blue-800 border-blue-200',
+    'Measurement': 'bg-purple-100 text-purple-800 border-purple-200',
+    'Wash/Finish': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    'Accessories/Trims': 'bg-rose-100 text-rose-800 border-rose-200',
+};
+
+const SEVERITY_COLORS: Record<string, string> = {
+    'Critical': 'bg-red-500 text-white',
+    'Major': 'bg-orange-500 text-white',
+    'Minor': 'bg-yellow-400 text-yellow-900',
+};
+
+const CATEGORIES = ['Fabric', 'Workmanship', 'Measurement', 'Wash/Finish', 'Accessories/Trims'];
+
+// ==================== Main Component ====================
 
 const CustomerFeedback = () => {
     const queryClient = useQueryClient();
     const { canAddCustomerFeedback } = useAuth();
     const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null);
     const [isOpen, setIsOpen] = useState(false);
+
+    // Standardized defect picker state
+    const [selectedCategory, setSelectedCategory] = useState<string>('');
+    const [issuesList, setIssuesList] = useState<CustomerIssue[]>([]);
 
     const [page, setPage] = useState(1);
     const [filters, setFilters] = useState({
@@ -72,6 +117,7 @@ const CustomerFeedback = () => {
 
     const { register, handleSubmit, reset, setValue } = useForm<FeedbackForm>();
 
+    // Fetch inspections
     const { data: inspectionsData, isLoading } = useQuery({
         queryKey: ['inspections-feedback', page, filters],
         queryFn: async () => {
@@ -92,19 +138,62 @@ const CustomerFeedback = () => {
         placeholderData: (previousData) => previousData,
     });
 
+    // Fetch standardized defect library
+    const { data: defectsLibrary } = useQuery({
+        queryKey: ['standardized-defects'],
+        queryFn: async () => {
+            const res = await api.get('/standardized-defects/');
+            return res.data as StandardizedDefect[];
+        },
+    });
+
+    // Fetch existing customer issues when opening a feedback dialog
+    const { data: existingIssuesData } = useQuery({
+        queryKey: ['inspection-detail', selectedInspection?.id],
+        queryFn: async () => {
+            if (!selectedInspection) return null;
+            const res = await api.get(`/inspections/${selectedInspection.id}/`);
+            return res.data;
+        },
+        enabled: !!selectedInspection,
+    });
+
     const inspections = Array.isArray(inspectionsData) ? inspectionsData : inspectionsData?.results || [];
+
+    // Filter defects by selected category for the dropdown
+    const filteredDefects = useMemo(() => {
+        if (!defectsLibrary || !selectedCategory) return [];
+        return defectsLibrary.filter((d: StandardizedDefect) => d.category === selectedCategory);
+    }, [defectsLibrary, selectedCategory]);
+
+    // react-select options
+    const defectOptions = useMemo(() => {
+        return filteredDefects.map((d: StandardizedDefect) => ({
+            value: d.id,
+            label: `${d.defect_name} (${d.severity})`,
+            defect: d,
+        }));
+    }, [filteredDefects]);
 
     const updateMutation = useMutation({
         mutationFn: async (data: FeedbackForm) => {
             if (!selectedInspection) return;
-            // Use dedicated feedback endpoint that allows merchandisers
-            const res = await api.patch(`/inspections/${selectedInspection.id}/update_customer_feedback/`, data);
+            const payload = {
+                ...data,
+                customer_issues: issuesList.map(issue => ({
+                    standardized_defect: issue.standardized_defect,
+                    status: issue.status,
+                })),
+            };
+            const res = await api.patch(`/inspections/${selectedInspection.id}/update_customer_feedback/`, payload);
             return res.data;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['inspections-feedback'] });
             setIsOpen(false);
             setSelectedInspection(null);
+            setIssuesList([]);
+            setSelectedCategory('');
             reset();
             toast.success('Feedback updated successfully');
         },
@@ -137,7 +226,59 @@ const CustomerFeedback = () => {
         setSelectedInspection(inspection);
         setValue('customer_decision', inspection.customer_decision || '');
         setValue('customer_feedback_comments', inspection.customer_feedback_comments || '');
+        setValue('specialized_remarks', inspection.specialized_remarks || '');
+        setIssuesList([]);
+        setSelectedCategory('');
         setIsOpen(true);
+    };
+
+    // Populate issues list when existing data loads
+    useMemo(() => {
+        if (existingIssuesData?.customer_issues && isOpen) {
+            const existing = existingIssuesData.customer_issues.map((issue: any) => ({
+                id: issue.id,
+                standardized_defect: issue.standardized_defect,
+                defect_name: issue.defect_name,
+                defect_category: issue.defect_category,
+                defect_severity: issue.defect_severity,
+                status: issue.status,
+            }));
+            setIssuesList(existing);
+        }
+    }, [existingIssuesData, isOpen]);
+
+    const handleAddDefect = (option: any) => {
+        if (!option) return;
+        const defect: StandardizedDefect = option.defect;
+
+        // Prevent duplicates
+        if (issuesList.some(i => i.standardized_defect === defect.id)) {
+            toast.info('This defect is already in the list');
+            return;
+        }
+
+        setIssuesList(prev => [
+            ...prev,
+            {
+                standardized_defect: defect.id,
+                defect_name: defect.defect_name,
+                defect_category: defect.category,
+                defect_severity: defect.severity,
+                status: 'Open',
+            },
+        ]);
+    };
+
+    const handleRemoveDefect = (defectId: string) => {
+        setIssuesList(prev => prev.filter(i => i.standardized_defect !== defectId));
+    };
+
+    const handleToggleStatus = (defectId: string) => {
+        setIssuesList(prev => prev.map(i =>
+            i.standardized_defect === defectId
+                ? { ...i, status: i.status === 'Open' ? 'Resolved' : 'Open' }
+                : i
+        ));
     };
 
     const onSubmit = (data: FeedbackForm) => {
@@ -185,6 +326,7 @@ const CustomerFeedback = () => {
                             <TableHead>Stage</TableHead>
                             <TableHead>QA Decision</TableHead>
                             <TableHead>Customer Decision</TableHead>
+                            <TableHead>Issues</TableHead>
                             <TableHead>Evaluation Date</TableHead>
                             <TableHead>Feedback Date</TableHead>
                             <TableHead className="w-[100px]">Actions</TableHead>
@@ -202,6 +344,16 @@ const CustomerFeedback = () => {
                                     </Badge>
                                 </TableCell>
                                 <TableCell>{getDecisionBadge(inspection.customer_decision)}</TableCell>
+                                <TableCell>
+                                    {inspection.customer_issues_count > 0 ? (
+                                        <Badge className="bg-violet-500">
+                                            <Tag className="w-3 h-3 mr-1" />
+                                            {inspection.customer_issues_count}
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-gray-400 text-sm">—</span>
+                                    )}
+                                </TableCell>
                                 <TableCell className="text-sm text-gray-600">
                                     {inspection.created_at ? new Date(inspection.created_at).toLocaleDateString('en-GB') : '-'}
                                 </TableCell>
@@ -228,18 +380,31 @@ const CustomerFeedback = () => {
                 </Table>
             </div>
 
+            {/* ==================== FEEDBACK DIALOG ==================== */}
             <Dialog open={isOpen} onOpenChange={(open) => {
                 setIsOpen(open);
-                if (!open) setSelectedInspection(null);
+                if (!open) {
+                    setSelectedInspection(null);
+                    setIssuesList([]);
+                    setSelectedCategory('');
+                }
             }}>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Update Customer Feedback</DialogTitle>
+                        <DialogTitle>
+                            Update Customer Feedback
+                            {selectedInspection && (
+                                <span className="text-sm font-normal text-gray-500 ml-2">
+                                    — {selectedInspection.style} / {selectedInspection.color}
+                                </span>
+                            )}
+                        </DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-4">
+                        {/* Customer Decision */}
                         <div className="space-y-2">
                             <Label>Customer Decision</Label>
-                            <Select
+                            <ShadcnSelect
                                 onValueChange={(value) => setValue('customer_decision', value)}
                                 defaultValue={selectedInspection?.customer_decision || ''}
                             >
@@ -253,15 +418,140 @@ const CustomerFeedback = () => {
                                     <SelectItem value="Accepted with Comments">Accepted with Comments</SelectItem>
                                     <SelectItem value="Held Internally">Held Internally</SelectItem>
                                 </SelectContent>
-                            </Select>
+                            </ShadcnSelect>
                         </div>
 
+                        {/* ---- STANDARDIZED ISSUES SECTION ---- */}
+                        <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+                            <Label className="text-base font-semibold flex items-center gap-2">
+                                <Tag className="w-4 h-4" />
+                                Standardized Issues
+                            </Label>
+                            <p className="text-xs text-gray-500">
+                                Select a category, then search and add standardized defects. These enable Pareto Analysis and Root Cause tracking.
+                            </p>
+
+                            {/* Category + Defect Picker Row */}
+                            <div className="flex gap-3">
+                                {/* Category Dropdown */}
+                                <div className="w-[200px]">
+                                    <ShadcnSelect
+                                        onValueChange={(val) => setSelectedCategory(val)}
+                                        value={selectedCategory}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Category..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {CATEGORIES.map(cat => (
+                                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </ShadcnSelect>
+                                </div>
+
+                                {/* Fuzzy Search Defect Dropdown */}
+                                <div className="flex-1">
+                                    <Select
+                                        options={defectOptions}
+                                        isDisabled={!selectedCategory}
+                                        isClearable
+                                        isSearchable
+                                        placeholder={selectedCategory ? `Search ${selectedCategory} defects...` : 'Select a category first'}
+                                        onChange={(option) => handleAddDefect(option)}
+                                        value={null}
+                                        noOptionsMessage={() => 'No matching defects'}
+                                        styles={{
+                                            control: (base) => ({
+                                                ...base,
+                                                borderColor: '#e5e7eb',
+                                                minHeight: '36px',
+                                                '&:hover': { borderColor: '#9ca3af' },
+                                            }),
+                                            option: (base, state) => ({
+                                                ...base,
+                                                backgroundColor: state.isFocused ? '#f3f4f6' : 'white',
+                                                color: '#111827',
+                                                fontSize: '14px',
+                                            }),
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Issues List */}
+                            {issuesList.length > 0 && (
+                                <div className="space-y-2 mt-3">
+                                    {issuesList.map((issue) => (
+                                        <div
+                                            key={issue.standardized_defect}
+                                            className="flex items-center justify-between bg-white rounded-md border px-3 py-2 shadow-sm"
+                                        >
+                                            <div className="flex items-center gap-2 flex-1">
+                                                <span className={`text-xs px-2 py-0.5 rounded-full border ${CATEGORY_COLORS[issue.defect_category] || 'bg-gray-100'}`}>
+                                                    {issue.defect_category}
+                                                </span>
+                                                <span className="text-sm font-medium">{issue.defect_name}</span>
+                                                <span className={`text-xs px-1.5 py-0.5 rounded ${SEVERITY_COLORS[issue.defect_severity] || 'bg-gray-200'}`}>
+                                                    {issue.defect_severity}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleStatus(issue.standardized_defect)}
+                                                    className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                                                        issue.status === 'Open'
+                                                            ? 'bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100'
+                                                            : 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                                                    }`}
+                                                >
+                                                    {issue.status}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveDefect(issue.standardized_defect)}
+                                                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="text-xs text-gray-400 text-right">
+                                        {issuesList.length} issue{issuesList.length !== 1 ? 's' : ''} added
+                                    </div>
+                                </div>
+                            )}
+
+                            {issuesList.length === 0 && (
+                                <div className="text-center py-4 text-sm text-gray-400 border-2 border-dashed rounded-lg">
+                                    <Plus className="w-5 h-5 mx-auto mb-1 text-gray-300" />
+                                    No standardized issues added yet
+                                </div>
+                            )}
+                        </div>
+
+                        {/* General Comments (legacy) */}
                         <div className="space-y-2">
-                            <Label>Comments</Label>
+                            <Label>General Comments</Label>
                             <Textarea
                                 {...register('customer_feedback_comments')}
-                                placeholder="Enter detailed feedback..."
-                                className="min-h-[100px]"
+                                placeholder="Enter general feedback comments..."
+                                className="min-h-[80px]"
+                            />
+                        </div>
+
+                        {/* Specialized Style Comments */}
+                        <div className="space-y-2">
+                            <Label>Specialized Style Comments</Label>
+                            <p className="text-xs text-gray-500">
+                                Non-standardizable, style-specific context (e.g., "For this style only, pocket flap must be curved")
+                            </p>
+                            <Textarea
+                                {...register('specialized_remarks')}
+                                placeholder="Enter style-specific comments that don't fit standard categories..."
+                                className="min-h-[80px]"
                             />
                         </div>
 

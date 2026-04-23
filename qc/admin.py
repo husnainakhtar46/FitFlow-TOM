@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from .models import (
     Customer, CustomerEmail, Template, TemplatePOM, Inspection, Measurement, InspectionImage,
     FinalInspection, FinalInspectionDefect, FinalInspectionSizeCheck, FinalInspectionImage,
-    UserProfile
+    UserProfile, StandardizedDefect, InspectionCustomerIssue
 )
 
 User = get_user_model()
@@ -47,3 +47,5 @@ admin.site.register(FinalInspection)
 admin.site.register(FinalInspectionDefect)
 admin.site.register(FinalInspectionSizeCheck)
 admin.site.register(FinalInspectionImage)
+admin.site.register(StandardizedDefect)
+admin.site.register(InspectionCustomerIssue)

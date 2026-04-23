@@ -470,6 +470,73 @@ const Dashboard = () => {
                     </Card>
                 </div>
             </div>
+
+            {/* ==================== CUSTOMER ISSUES SECTION ==================== */}
+            <div className="border-t-4 border-violet-500 pt-6 mt-8">
+                <h2 className="text-xl md:text-2xl font-bold text-violet-800 mb-4">Customer Issues Analytics (Pareto / RCA)</h2>
+
+                {/* Customer Issues KPI Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6">
+                    <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Total Customer Issues</CardTitle></CardHeader>
+                        <CardContent><div className="text-2xl font-bold">{data?.total_customer_issues || 0}</div></CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Open Issues</CardTitle></CardHeader>
+                        <CardContent><div className="text-2xl font-bold text-orange-600">{data?.open_customer_issues || 0}</div></CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Resolved Issues</CardTitle></CardHeader>
+                        <CardContent><div className="text-2xl font-bold text-green-600">{data?.resolved_customer_issues || 0}</div></CardContent>
+                    </Card>
+                </div>
+
+                {/* Charts Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    {/* Issues by Category (Pareto) */}
+                    <Card className="h-[400px]">
+                        <CardHeader><CardTitle>Customer Issues by Category (Pareto)</CardTitle></CardHeader>
+                        <CardContent className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={(data?.customer_issues_by_category || []).map((item: any) => ({
+                                        name: item.standardized_defect__category || 'Unknown',
+                                        count: item.count || 0,
+                                    }))}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Bar dataKey="count" fill="#8b5cf6" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    {/* Top Defects */}
+                    <Card className="h-[400px]">
+                        <CardHeader><CardTitle>Top Customer-Raised Defects</CardTitle></CardHeader>
+                        <CardContent className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={(data?.customer_issues_top_defects || []).map((item: any) => ({
+                                        name: item.standardized_defect__defect_name || 'Unknown',
+                                        count: item.count || 0,
+                                    }))}
+                                    layout="vertical"
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis type="number" />
+                                    <YAxis dataKey="name" type="category" width={150} />
+                                    <Tooltip />
+                                    <Bar dataKey="count" fill="#a855f7" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
         </div >
     );
 };

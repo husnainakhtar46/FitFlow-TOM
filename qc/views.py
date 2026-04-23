@@ -10,11 +10,12 @@ from django.conf import settings
 from django.http import FileResponse
 import io
 from PIL import Image as PILImage
-from .models import Customer, CustomerEmail, Template, Inspection, InspectionImage, Measurement, FilterPreset, Factory
+from .models import Customer, CustomerEmail, Template, Inspection, InspectionImage, Measurement, FilterPreset, Factory, StandardizedDefect, InspectionCustomerIssue
 from .serializers import (
     CustomerSerializer, CustomerEmailSerializer, TemplateSerializer, 
     InspectionSerializer, InspectionListSerializer, CustomTokenObtainPairSerializer,
-    InspectionCopySerializer, FilterPresetSerializer, FactorySerializer
+    InspectionCopySerializer, FilterPresetSerializer, FactorySerializer,
+    StandardizedDefectSerializer, InspectionCustomerIssueSerializer
 )
 from django.db.models import Prefetch
 from .filters import InspectionFilter
@@ -167,20 +168,22 @@ class InspectionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["patch"], permission_classes=[CanAddCustomerFeedback])
     def update_customer_feedback(self, request, pk=None):
         """
-        Update customer feedback fields only.
+        Update customer feedback fields + standardized issues.
         Only merchandisers and admin can use this.
+        Accepts:
+          - customer_decision: str
+          - customer_feedback_comments: str
+          - specialized_remarks: str
+          - customer_issues: [{standardized_defect: uuid, status: 'Open'|'Resolved'}]
         """
         from django.utils import timezone
         inspection = self.get_object()
         
         # Only allow updating feedback-specific fields
-        allowed_fields = ['customer_decision', 'customer_feedback_comments']
+        allowed_fields = ['customer_decision', 'customer_feedback_comments', 'specialized_remarks']
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
         
-        if not data:
-            return Response({"error": "No valid feedback fields provided"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update the fields
+        # Update the scalar fields
         for field, value in data.items():
             setattr(inspection, field, value)
         
@@ -188,11 +191,36 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.customer_feedback_date = timezone.now()
         inspection.save()
         
+        # Handle standardized customer issues (replace all)
+        customer_issues_data = request.data.get('customer_issues')
+        if customer_issues_data is not None:
+            # Clear existing issues for this inspection and recreate
+            inspection.customer_issues.all().delete()
+            for issue_data in customer_issues_data:
+                defect_id = issue_data.get('standardized_defect')
+                issue_status = issue_data.get('status', 'Open')
+                if defect_id:
+                    try:
+                        defect = StandardizedDefect.objects.get(id=defect_id)
+                        InspectionCustomerIssue.objects.create(
+                            inspection=inspection,
+                            standardized_defect=defect,
+                            status=issue_status
+                        )
+                    except StandardizedDefect.DoesNotExist:
+                        pass  # Skip invalid defect IDs silently
+        
+        # Return updated data with nested issues
+        issues_qs = inspection.customer_issues.select_related('standardized_defect').all()
+        issues_serializer = InspectionCustomerIssueSerializer(issues_qs, many=True)
+        
         return Response({
             "id": str(inspection.id),
             "customer_decision": inspection.customer_decision,
             "customer_feedback_comments": inspection.customer_feedback_comments,
+            "specialized_remarks": inspection.specialized_remarks,
             "customer_feedback_date": str(inspection.customer_feedback_date),
+            "customer_issues": issues_serializer.data,
         })
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -250,8 +278,29 @@ class FilterPresetViewSet(viewsets.ModelViewSet):
         # Auto-assign the current user when creating a preset
         serializer.save(user=self.request.user)
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
+
+
+class StandardizedDefectViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only ViewSet for the standardized defect library.
+    Frontend fetches this to populate the fuzzy search dropdown.
+    Supports filtering by category via query param: ?category=Fabric
+    """
+    queryset = StandardizedDefect.objects.all()
+    serializer_class = StandardizedDefectSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['defect_name', 'category']
+    pagination_class = None  # Return all defects without pagination (small dataset)
+
+    def get_queryset(self):
+        queryset = StandardizedDefect.objects.all()
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+        return queryset
+
 
 class DashboardView(APIView):
     permission_classes = [CanViewDashboard]
@@ -339,6 +388,37 @@ class DashboardView(APIView):
             total=Count('id')
         ).order_by('-total')[:10]
 
+        # ==================== CUSTOMER ISSUE ANALYTICS ====================
+        # Issues by category (for Pareto chart)
+        issue_qs = InspectionCustomerIssue.objects.all()
+        if start_date:
+            issue_qs = issue_qs.filter(inspection__created_at__date__gte=start_date)
+        if end_date:
+            issue_qs = issue_qs.filter(inspection__created_at__date__lte=end_date)
+        if customer_id:
+            issue_qs = issue_qs.filter(inspection__customer_id=customer_id)
+        if factory_name:
+            issue_qs = issue_qs.filter(inspection__factory=factory_name)
+
+        customer_issues_by_category = list(
+            issue_qs.values('standardized_defect__category')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+
+        customer_issues_top_defects = list(
+            issue_qs.values(
+                'standardized_defect__defect_name',
+                'standardized_defect__category'
+            )
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        )
+
+        total_customer_issues = issue_qs.count()
+        open_customer_issues = issue_qs.filter(status='Open').count()
+        resolved_customer_issues = issue_qs.filter(status='Resolved').count()
+
         return Response({
             # Evaluation Data
             "total_inspections": total_inspections,
@@ -360,6 +440,12 @@ class DashboardView(APIView):
             "fi_monthly_fail": list(fi_monthly_fail),
             "fi_by_customer": list(fi_by_customer),
             "fi_top_defects": list(fi_top_defects),
+            # Customer Issue Analytics
+            "total_customer_issues": total_customer_issues,
+            "open_customer_issues": open_customer_issues,
+            "resolved_customer_issues": resolved_customer_issues,
+            "customer_issues_by_category": customer_issues_by_category,
+            "customer_issues_top_defects": customer_issues_top_defects,
         })
 
 # ==================== Final Inspection ViewSet ====================

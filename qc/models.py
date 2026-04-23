@@ -167,6 +167,8 @@ class Inspection(models.Model):
     customer_decision = models.CharField(max_length=50, choices=CUSTOMER_DECISION_CHOICES, null=True, blank=True)
     customer_feedback_comments = models.TextField(blank=True, verbose_name="Customer Feedback Comments")
     customer_feedback_date = models.DateTimeField(null=True, blank=True)
+    specialized_remarks = models.TextField(blank=True, verbose_name="Specialized Style Comments",
+        help_text="Non-standardizable, style-specific context for this feedback")
     
     decision = models.CharField(max_length=20, choices=DECISION_CHOICES, null=True, blank=True)
     
@@ -806,4 +808,74 @@ class OTPVerification(models.Model):
 
     def __str__(self):
         return f"OTP for {self.user.email} - {'Used' if self.is_used else 'Active'}"
+
+
+# ==================== Standardized Defect Models ====================
+
+class StandardizedDefect(models.Model):
+    """
+    Lookup table for standardized, pre-defined defects.
+    Enables objective, quantifiable customer feedback instead of free-text comments.
+    Populated via data migration from the Mag Quality Check manual.
+    """
+    CATEGORY_CHOICES = [
+        ('Fabric', 'Fabric'),
+        ('Workmanship', 'Workmanship'),
+        ('Measurement', 'Measurement'),
+        ('Wash/Finish', 'Wash/Finish'),
+        ('Accessories/Trims', 'Accessories/Trims'),
+    ]
+    SEVERITY_CHOICES = [
+        ('Critical', 'Critical'),
+        ('Major', 'Major'),
+        ('Minor', 'Minor'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, db_index=True)
+    defect_name = models.CharField(max_length=255)
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES, default='Minor')
+
+    class Meta:
+        ordering = ['category', 'defect_name']
+        unique_together = ['category', 'defect_name']
+        verbose_name = "Standardized Defect"
+        verbose_name_plural = "Standardized Defects"
+
+    def __str__(self):
+        return f"[{self.category}] {self.defect_name} ({self.severity})"
+
+
+class InspectionCustomerIssue(models.Model):
+    """
+    Links a standardized defect to an Inspection as a customer-raised issue.
+    One Inspection can have many customer issues (One-to-Many).
+    Enables Pareto Analysis and Root Cause Analysis on customer feedback data.
+    """
+    STATUS_CHOICES = [
+        ('Open', 'Open'),
+        ('Resolved', 'Resolved'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    inspection = models.ForeignKey(
+        Inspection,
+        on_delete=models.CASCADE,
+        related_name='customer_issues'
+    )
+    standardized_defect = models.ForeignKey(
+        StandardizedDefect,
+        on_delete=models.PROTECT,
+        related_name='inspection_issues'
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Open')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Inspection Customer Issue"
+        verbose_name_plural = "Inspection Customer Issues"
+
+    def __str__(self):
+        return f"{self.inspection.style} - {self.standardized_defect.defect_name} ({self.status})"
 

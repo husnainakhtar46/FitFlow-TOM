@@ -4,7 +4,8 @@ from .models import (
     Customer, CustomerEmail, Template, TemplatePOM, Inspection, Measurement, MeasurementSample, InspectionImage, FilterPreset,
     FinalInspection, FinalInspectionDefect, FinalInspectionSizeCheck, FinalInspectionImage,
     FinalInspectionMeasurement, FinalInspectionMeasurementSample,
-    StyleMaster, SampleComment, SampleCommentImage, StyleLink, Factory
+    StyleMaster, SampleComment, SampleCommentImage, StyleLink, Factory,
+    StandardizedDefect, InspectionCustomerIssue
 )
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils import timezone
@@ -113,14 +114,36 @@ class InspectionImageSerializer(serializers.ModelSerializer):
         model = InspectionImage
         fields = ["id","caption","image","uploaded_at"]
 
+# ==================== Standardized Defect Serializers ====================
+
+class StandardizedDefectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StandardizedDefect
+        fields = ['id', 'category', 'defect_name', 'severity']
+        read_only_fields = ['id']
+
+
+class InspectionCustomerIssueSerializer(serializers.ModelSerializer):
+    defect_name = serializers.CharField(source='standardized_defect.defect_name', read_only=True)
+    defect_category = serializers.CharField(source='standardized_defect.category', read_only=True)
+    defect_severity = serializers.CharField(source='standardized_defect.severity', read_only=True)
+
+    class Meta:
+        model = InspectionCustomerIssue
+        fields = ['id', 'standardized_defect', 'defect_name', 'defect_category', 'defect_severity', 'status', 'created_at']
+        read_only_fields = ['id', 'created_at', 'defect_name', 'defect_category', 'defect_severity']
+
+
 class InspectionListSerializer(serializers.ModelSerializer):
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    customer_issues_count = serializers.IntegerField(source='customer_issues.count', read_only=True)
     class Meta:
         model = Inspection
         fields = [
             "id","style","color","po_number","stage","template","customer",
             "remarks","decision","created_at", "updated_at", "created_by_username",
             "customer_decision", "customer_feedback_comments", "customer_feedback_date",
+            "specialized_remarks", "customer_issues_count",
             "is_draft"
         ]
 
@@ -145,12 +168,14 @@ class InspectionCopySerializer(serializers.ModelSerializer):
             # General
             "remarks","decision","created_at","updated_at","measurements","images",
             "customer_decision", "customer_feedback_comments", "customer_feedback_date",
+            "specialized_remarks",
             "is_draft"
         ]
 
 class InspectionSerializer(serializers.ModelSerializer):
     measurements = MeasurementSerializer(many=True)
     images = InspectionImageSerializer(many=True, read_only=True)
+    customer_issues = InspectionCustomerIssueSerializer(many=True, read_only=True)
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
 
     class Meta:
@@ -172,6 +197,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             "remarks","decision","created_at","updated_at","measurements","images",
             "created_by_username",
             "customer_decision", "customer_feedback_comments", "customer_feedback_date",
+            "specialized_remarks", "customer_issues",
             "is_draft"
         ]
 

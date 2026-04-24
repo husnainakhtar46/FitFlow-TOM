@@ -82,21 +82,23 @@ yarn-error.log*
 
 !frontend/src/lib/aqlCalculations.ts
 
-# Deployment
+# Deployment Guides (contain passwords and secret keys)
 deployment_guide.md
 DEPLOYMENT_GUIDE.md
+DEPLOYMENT_GUIDE_NEW_ACCOUNT.md
 deploy_v2.sh
 deploy_v2.ps1
 
+# CORS config (contains frontend URLs)
+cors.json
 
-
-# Documentation
+# Documentation (internal only)
 FRONTEND_GUIDELINES.md
 
 # Undocumented AI context metadata
 .infrastructure_context.md
 
-# AI Tools
+# AI Tools & Skills (contain infra secrets and deployment details)
 .agents/
 .Antigravityrules
 Antigravityrules.md

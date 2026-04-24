@@ -68,7 +68,11 @@ STORAGES = {
         "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        # CompressedStaticFilesStorage (no manifest) is used because collectstatic
+        # runs in the Dockerfile with dev settings which don't generate a manifest.
+        # CompressedManifestStaticFilesStorage would cause 500 errors on Django admin
+        # because it requires a staticfiles.json manifest that doesn't exist.
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 

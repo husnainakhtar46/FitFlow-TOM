@@ -104,8 +104,9 @@ from urllib.parse import quote_plus
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL and os.getenv("DB_HOST"):
-    # Construct from individual vars (Cloud Run / Vercel style)
+if not DATABASE_URL and os.getenv("DB_HOST") and not (os.getenv("K_SERVICE") or os.getenv("CLOUD_RUN_JOB")):
+    # Construct from individual vars (Local / Vercel style)
+    # Skip this on Cloud Run as settings_production.py handles it differently
     db_user = os.getenv("DB_USER", "postgres")
     db_password = os.getenv("DB_PASSWORD", "")
     db_host = os.getenv("DB_HOST", "localhost")

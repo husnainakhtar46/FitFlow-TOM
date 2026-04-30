@@ -164,3 +164,107 @@ def calculate_factory_ratings_for_month(target_date: date):
         rating.save(update_fields=['percentile_rank', 'grade'])
 
     return len(calculated_scores)
+
+
+def _get_trend(current_val, calc_func, current_start, current_end, factory_name=None, customer_id=None):
+    prev_start = current_start - relativedelta(months=3)
+    prev_end = current_start - relativedelta(days=1)
+    prev_val = calc_func(prev_start, prev_end, factory_name, customer_id)
+    
+    if prev_val == 0:
+        return {"value": current_val, "trend": 0, "previous_average": 0}
+        
+    trend = ((current_val - prev_val) / prev_val) * 100
+    return {"value": current_val, "trend": trend, "previous_average": prev_val}
+
+
+def _calc_ftr_rate(start_date, end_date, factory_name=None, customer_id=None):
+    from qc.models import FinalInspection, StyleMaster
+    fi_qs = FinalInspection.objects.filter(inspection_date__gte=start_date, inspection_date__lte=end_date)
+    if factory_name:
+        fi_qs = fi_qs.filter(factory=factory_name)
+    if customer_id:
+        fi_qs = fi_qs.filter(customer_id=customer_id)
+        
+    total_styles = 0
+    ftr_styles = 0
+    
+    for fi in fi_qs:
+        total_styles += 1
+        if fi.inspection_attempt != '1st':
+            continue
+            
+        try:
+            style = StyleMaster.objects.filter(style_name=fi.style_no, po_number=fi.order_no).first()
+            if style:
+                has_rework = style.comments.filter(sample_number__gt=1).exists()
+                if not has_rework:
+                    ftr_styles += 1
+            else:
+                ftr_styles += 1
+        except Exception:
+            pass
+
+    return (ftr_styles / total_styles * 100) if total_styles > 0 else 0
+
+
+def calculate_ftr_rate(start_date, end_date, factory_name=None, customer_id=None):
+    current_val = _calc_ftr_rate(start_date, end_date, factory_name, customer_id)
+    return _get_trend(current_val, _calc_ftr_rate, start_date, end_date, factory_name, customer_id)
+
+
+def _calc_feedback_closure_time(start_date, end_date, factory_name=None, customer_id=None):
+    from qc.models import SampleComment
+    base_comments = SampleComment.objects.filter(
+        status__in=['Rejected', 'Resubmit'],
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date
+    ).select_related('style')
+    
+    if factory_name:
+        base_comments = base_comments.filter(style__factory__name=factory_name)
+    if customer_id:
+        base_comments = base_comments.filter(style__customer_id=customer_id)
+        
+    total_days = 0
+    count = 0
+    
+    for comment in base_comments:
+        next_comment = SampleComment.objects.filter(
+            style=comment.style,
+            sample_type=comment.sample_type,
+            created_at__gt=comment.created_at
+        ).order_by('created_at').first()
+        
+        if next_comment:
+            duration = (next_comment.created_at - comment.created_at).days
+            total_days += duration
+            count += 1
+            
+    return (total_days / count) if count > 0 else 0
+
+
+def calculate_feedback_closure_time(start_date, end_date, factory_name=None, customer_id=None):
+    current_val = _calc_feedback_closure_time(start_date, end_date, factory_name, customer_id)
+    return _get_trend(current_val, _calc_feedback_closure_time, start_date, end_date, factory_name, customer_id)
+
+
+def _calc_production_defect_rate(start_date, end_date, factory_name=None, customer_id=None):
+    from qc.models import FinalInspection, FinalInspectionDefect
+    fi_qs = FinalInspection.objects.filter(inspection_date__gte=start_date, inspection_date__lte=end_date)
+    if factory_name:
+        fi_qs = fi_qs.filter(factory=factory_name)
+    if customer_id:
+        fi_qs = fi_qs.filter(customer_id=customer_id)
+        
+    total_inspected = fi_qs.aggregate(total=Sum('sample_size'))['total'] or 0
+    
+    defect_qs = FinalInspectionDefect.objects.filter(final_inspection__in=fi_qs)
+    total_defects = defect_qs.aggregate(total=Sum('count'))['total'] or 0
+    
+    return (total_defects / total_inspected * 100) if total_inspected > 0 else 0
+
+
+def calculate_production_defect_rate(start_date, end_date, factory_name=None, customer_id=None):
+    current_val = _calc_production_defect_rate(start_date, end_date, factory_name, customer_id)
+    return _get_trend(current_val, _calc_production_defect_rate, start_date, end_date, factory_name, customer_id)

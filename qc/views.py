@@ -427,6 +427,19 @@ class DashboardView(APIView):
         open_customer_issues = issue_qs.filter(status='Open').count()
         resolved_customer_issues = issue_qs.filter(status='Resolved').count()
 
+        # Operational KPIs
+        from qc.services.rating_calculator import calculate_ftr_rate, calculate_feedback_closure_time, calculate_production_defect_rate
+        from datetime import datetime
+        from django.utils import timezone
+        from dateutil.relativedelta import relativedelta
+
+        s_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else (timezone.now().date() - relativedelta(months=1))
+        e_date = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else timezone.now().date()
+        
+        ftr_data = calculate_ftr_rate(s_date, e_date, factory_name, customer_id)
+        feedback_closure_data = calculate_feedback_closure_time(s_date, e_date, factory_name, customer_id)
+        production_defect_data = calculate_production_defect_rate(s_date, e_date, factory_name, customer_id)
+
         return Response({
             # Evaluation Data
             "total_inspections": total_inspections,
@@ -454,6 +467,10 @@ class DashboardView(APIView):
             "resolved_customer_issues": resolved_customer_issues,
             "customer_issues_by_category": customer_issues_by_category,
             "customer_issues_top_defects": customer_issues_top_defects,
+            # Operational KPIs
+            "ftr_rate": ftr_data,
+            "feedback_closure_time": feedback_closure_data,
+            "production_defect_rate": production_defect_data,
         })
 
 # ==================== Final Inspection ViewSet ====================

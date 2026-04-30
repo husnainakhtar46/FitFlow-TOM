@@ -270,6 +270,54 @@ const Dashboard = () => {
                 </CardContent>
             </Card>
 
+            {/* Operational KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                <Card className="border-l-4 border-l-blue-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">First Time Right (FTR) Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className={`text-3xl font-bold ${(data?.ftr_rate?.value ?? 0) > 80 ? 'text-green-600' : 'text-red-600'}`}>
+                            {data?.ftr_rate?.value?.toFixed(1) || '0.0'}%
+                        </div>
+                        <div className="text-sm text-gray-400 mt-1">
+                            Trend: {(data?.ftr_rate?.trend ?? 0) > 0 ? '+' : ''}{data?.ftr_rate?.trend?.toFixed(1) || '0.0'}% vs prev 3mo
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">Target: &gt; 80%</div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-amber-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">Avg Feedback Closure Time</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-gray-800">
+                            {data?.feedback_closure_time?.value?.toFixed(1) || '0.0'} <span className="text-lg font-normal text-gray-500">days</span>
+                        </div>
+                        <div className="text-sm text-gray-400 mt-1">
+                            Trend: {(data?.feedback_closure_time?.trend ?? 0) > 0 ? '+' : ''}{data?.feedback_closure_time?.trend?.toFixed(1) || '0.0'}% vs prev 3mo
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">Time from Rejected/Resubmit to Next Sample</div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-rose-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">Production Defect Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className={`text-3xl font-bold ${(data?.production_defect_rate?.value ?? 0) < 5 ? 'text-green-600' : 'text-red-600'}`}>
+                            {data?.production_defect_rate?.value?.toFixed(1) || '0.0'}%
+                        </div>
+                        <div className="text-sm text-gray-400 mt-1">
+                            Trend: {(data?.production_defect_rate?.trend ?? 0) > 0 ? '+' : ''}{data?.production_defect_rate?.trend?.toFixed(1) || '0.0'}% vs prev 3mo
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">Target: &lt; 5%</div>
+                    </CardContent>
+                </Card>
+            </div>
+
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <Card>

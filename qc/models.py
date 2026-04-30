@@ -684,6 +684,14 @@ class SampleComment(models.Model):
     sample_type = models.CharField(max_length=50, choices=SAMPLE_TYPE_CHOICES)
     sample_number = models.PositiveSmallIntegerField(choices=SAMPLE_NUMBER_CHOICES, default=1, help_text="Which submission number (1st, 2nd, etc.)")
     
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+        ('Resubmit', 'Resubmit')
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    
     # Comment fields matching the Evaluation Form categories
     comments_general = models.TextField(blank=True, verbose_name="General Customer Feedback")
     comments_fit = models.TextField(blank=True, verbose_name="Fit Comments")

@@ -253,11 +253,23 @@ class FactoryViewSet(viewsets.ModelViewSet):
 
 class FactoryRatingViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for Factory Ratings - Read Only for frontend dashboard."""
-    queryset = FactoryRating.objects.all().order_by('-month', '-final_score')
     serializer_class = FactoryRatingSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['factory', 'month', 'grade']
+
+    def get_queryset(self):
+        from django.utils import timezone
+        qs = FactoryRating.objects.all().order_by('-final_score')
+        
+        # If the user provides a specific month string like '2026-04-01', DjangoFilterBackend handles it.
+        # However, we want the default view (no filters) to only show the CURRENT month's ratings.
+        month_param = self.request.query_params.get('month')
+        if not month_param:
+            current_month_start = timezone.now().date().replace(day=1)
+            qs = qs.filter(month=current_month_start)
+            
+        return qs
 
 class TemplateViewSet(viewsets.ModelViewSet):
     queryset = Template.objects.all()

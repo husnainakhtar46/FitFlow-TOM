@@ -210,7 +210,6 @@ export default function FinalInspections() {
                       <div><span className="font-medium">Date:</span> {new Date(inspection.inspection_date).toLocaleDateString()}</div>
                       <div><span className="font-medium">Order Qty:</span> {inspection.total_order_qty}</div>
                       <div><span className="font-medium">Sample Size:</span> {inspection.sample_size}</div>
-                      <div><span className="font-medium">Created:</span> {new Date(inspection.created_at).toLocaleDateString()}</div>
                     </div>
                   </div>
                   <div className="flex gap-2">

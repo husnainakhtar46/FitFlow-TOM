@@ -3,8 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
-import { ArrowUpIcon, ArrowDownIcon, MinusIcon } from 'lucide-react';
+import { ArrowUpIcon, ArrowDownIcon, MinusIcon, RefreshCw } from 'lucide-react';
 import api from '../../lib/api';
+import { useAuth } from '../../lib/useAuth';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface FactoryRating {
     id: string;
@@ -36,6 +39,10 @@ const getTrendIcon = (trend: string) => {
 };
 
 export const SupplierLeaderboard: React.FC = () => {
+    const { isSuperUser } = useAuth();
+    const queryClient = useQueryClient();
+    const [isRefreshing, setIsRefreshing] = React.useState(false);
+
     const { data: ratings, isLoading } = useQuery({
         queryKey: ['factory-ratings'],
         queryFn: async () => {
@@ -43,6 +50,20 @@ export const SupplierLeaderboard: React.FC = () => {
             return res.data?.results || res.data || [];
         }
     });
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            const res = await api.post('/factory-ratings/calculate/');
+            toast.success(res.data.message || 'Leaderboard refreshed successfully');
+            queryClient.invalidateQueries({ queryKey: ['factory-ratings'] });
+        } catch (error: any) {
+            console.error('Failed to refresh leaderboard', error);
+            toast.error(error.response?.data?.message || 'Failed to refresh leaderboard');
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     if (isLoading) {
         return <div>Loading leaderboard...</div>;
@@ -63,8 +84,18 @@ export const SupplierLeaderboard: React.FC = () => {
 
     return (
         <Card className="col-span-full">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <CardTitle>Supplier Performance Leaderboard</CardTitle>
+                {isSuperUser && (
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className="flex items-center gap-2 px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
+                    >
+                        <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? 'Refreshing...' : 'Refresh Ratings'}
+                    </button>
+                )}
             </CardHeader>
             <CardContent>
                 <Table>

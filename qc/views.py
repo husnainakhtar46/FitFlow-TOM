@@ -271,6 +271,18 @@ class FactoryRatingViewSet(viewsets.ReadOnlyModelViewSet):
             
         return qs
 
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def calculate(self, request):
+        from qc.services.rating_calculator import calculate_factory_ratings_for_month
+        from django.utils import timezone
+        
+        current_month_start = timezone.now().date().replace(day=1)
+        count = calculate_factory_ratings_for_month(current_month_start)
+        
+        return Response({
+            "message": f"Successfully calculated {count} factory ratings for {current_month_start.strftime('%B %Y')}."
+        })
+
 class TemplateViewSet(viewsets.ModelViewSet):
     queryset = Template.objects.all()
     serializer_class = TemplateSerializer

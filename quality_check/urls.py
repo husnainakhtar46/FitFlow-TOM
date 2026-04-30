@@ -6,7 +6,7 @@ from qc.views import (
     CustomerViewSet, TemplateViewSet, InspectionViewSet, DashboardView, 
     CustomTokenObtainPairView, FilterPresetViewSet, FinalInspectionViewSet,
     StyleMasterViewSet, SampleCommentViewSet, SampleCommentImageViewSet, StyleLinkViewSet, FactoryViewSet,
-    StandardizedDefectViewSet
+    StandardizedDefectViewSet, FactoryRatingViewSet
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -18,6 +18,7 @@ router.register(r"inspections", InspectionViewSet)
 router.register(r'filter-presets', FilterPresetViewSet, basename='filterpreset')
 router.register(r'final-inspections', FinalInspectionViewSet)
 router.register(r'factories', FactoryViewSet)
+router.register(r'factory-ratings', FactoryRatingViewSet, basename='factory-rating')
 router.register(r'standardized-defects', StandardizedDefectViewSet)
 # Style Cycle routes
 router.register(r'styles', StyleMasterViewSet)

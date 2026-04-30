@@ -4,7 +4,7 @@ from .models import (
     Customer, CustomerEmail, Template, TemplatePOM, Inspection, Measurement, MeasurementSample, InspectionImage, FilterPreset,
     FinalInspection, FinalInspectionDefect, FinalInspectionSizeCheck, FinalInspectionImage,
     FinalInspectionMeasurement, FinalInspectionMeasurementSample,
-    StyleMaster, SampleComment, SampleCommentImage, StyleLink, Factory,
+    StyleMaster, SampleComment, SampleCommentImage, StyleLink, Factory, FactoryRating,
     StandardizedDefect, InspectionCustomerIssue
 )
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -65,6 +65,14 @@ class FactorySerializer(serializers.ModelSerializer):
         model = Factory
         fields = ["id", "name", "address", "contact_person", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+class FactoryRatingSerializer(serializers.ModelSerializer):
+    factory_name = serializers.CharField(source='factory.name', read_only=True)
+    
+    class Meta:
+        model = FactoryRating
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at']
 
 class TemplateSerializer(serializers.ModelSerializer):
     poms = TemplatePOMSerializer(many=True)

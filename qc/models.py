@@ -879,3 +879,50 @@ class InspectionCustomerIssue(models.Model):
     def __str__(self):
         return f"{self.inspection.style} - {self.standardized_defect.defect_name} ({self.status})"
 
+# ==================== Factory Rating Models ====================
+
+class FactoryRating(models.Model):
+    """
+    Tracks monthly performance metrics and calculated ratings for factories.
+    Enables Relative Grading and Improvement Tracking.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    factory = models.ForeignKey(Factory, related_name='ratings', on_delete=models.CASCADE)
+    month = models.DateField(help_text="The first day of the month this rating applies to")
+    
+    # Raw Metrics
+    total_dev_samples = models.PositiveIntegerField(default=0, help_text="Total development samples submitted in this month")
+    total_dev_iterations = models.PositiveIntegerField(default=0, help_text="Sum of all sample numbers (iterations) for dev samples")
+    dev_iteration_ratio = models.FloatField(default=0.0, help_text="Average iterations per dev sample (total iterations / total samples)")
+    
+    total_final_inspections = models.PositiveIntegerField(default=0, help_text="Total final inspections in this month")
+    first_pass_count = models.PositiveIntegerField(default=0, help_text="Count of final inspections passed on 1st attempt")
+    first_pass_yield = models.FloatField(default=0.0, help_text="Percentage of FPY (first_pass_count / total_final_inspections)")
+    
+    internal_pass_rate = models.FloatField(default=0.0, help_text="Pass rate for internal QA evaluations")
+    customer_pass_rate = models.FloatField(default=0.0, help_text="Pass rate for customer evaluations")
+    
+    # Calculated Scores
+    base_score = models.FloatField(default=0.0, help_text="Average of internal and customer pass rates")
+    penalty_score = models.FloatField(default=0.0, help_text="Penalty deduction for high dev iterations and prod rework")
+    improvement_bonus = models.FloatField(default=0.0, help_text="Bonus for month-over-month improvement")
+    final_score = models.FloatField(default=0.0, help_text="Calculated final score before relative ranking")
+    
+    # Relative Grading
+    percentile_rank = models.FloatField(default=0.0, help_text="Percentile rank amongst all factories for this month")
+    
+    GRADE_CHOICES = [('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D'), ('N/A', 'N/A')]
+    grade = models.CharField(max_length=3, choices=GRADE_CHOICES, default='N/A', help_text="Relative grade based on percentile")
+    
+    TREND_CHOICES = [('Up', 'Up'), ('Down', 'Down'), ('Stable', 'Stable')]
+    trend = models.CharField(max_length=6, choices=TREND_CHOICES, default='Stable', help_text="Performance trend compared to previous month")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('factory', 'month')
+        ordering = ['-month', '-final_score']
+
+    def __str__(self):
+        return f"{self.factory.name} - {self.month.strftime('%Y-%m')} - {self.grade}"
+

@@ -10,12 +10,12 @@ from django.conf import settings
 from django.http import FileResponse
 import io
 from PIL import Image as PILImage
-from .models import Customer, CustomerEmail, Template, Inspection, InspectionImage, Measurement, FilterPreset, Factory, StandardizedDefect, InspectionCustomerIssue
+from .models import Customer, CustomerEmail, Template, Inspection, InspectionImage, Measurement, FilterPreset, Factory, StandardizedDefect, InspectionCustomerIssue, FactoryRating
 from .serializers import (
     CustomerSerializer, CustomerEmailSerializer, TemplateSerializer, 
     InspectionSerializer, InspectionListSerializer, CustomTokenObtainPairSerializer,
     InspectionCopySerializer, FilterPresetSerializer, FactorySerializer,
-    StandardizedDefectSerializer, InspectionCustomerIssueSerializer
+    StandardizedDefectSerializer, InspectionCustomerIssueSerializer, FactoryRatingSerializer
 )
 from django.db.models import Prefetch
 from .filters import InspectionFilter
@@ -250,6 +250,14 @@ class FactoryViewSet(viewsets.ModelViewSet):
     queryset = Factory.objects.all().order_by('-created_at')
     serializer_class = FactorySerializer
     permission_classes = [permissions.IsAuthenticated]
+
+class FactoryRatingViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for Factory Ratings - Read Only for frontend dashboard."""
+    queryset = FactoryRating.objects.all().order_by('-month', '-final_score')
+    serializer_class = FactoryRatingSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['factory', 'month', 'grade']
 
 class TemplateViewSet(viewsets.ModelViewSet):
     queryset = Template.objects.all()

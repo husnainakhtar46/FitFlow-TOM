@@ -38,7 +38,7 @@ def get_gmail_credentials():
         creds = Credentials.from_authorized_user_info(token_data, SCOPES)
     
     # Check for token file (local development)
-    token_path = getattr(settings, 'GMAIL_TOKEN_PATH', 'gmail-token.json')
+    token_path = getattr(settings, 'GMAIL_TOKEN_PATH', os.path.join(settings.BASE_DIR, 'gmail-token.json'))
     if not creds and os.path.exists(token_path):
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     

@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import api from '../lib/api';
 import { SearchableSelect } from '../components/SearchableSelect';
+import { SupplierLeaderboard } from '../components/Dashboard/SupplierLeaderboard';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -287,6 +288,11 @@ const Dashboard = () => {
                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Failed</CardTitle></CardHeader>
                     <CardContent><div className="text-2xl font-bold text-red-600">{data?.fail_count}</div></CardContent>
                 </Card>
+            </div>
+
+            {/* Supplier Leaderboard */}
+            <div className="mt-6 mb-6">
+                <SupplierLeaderboard />
             </div>
 
             {/* Row 2: Existing Charts */}

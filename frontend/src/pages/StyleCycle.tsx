@@ -510,7 +510,6 @@ const StyleCycle = () => {
                                 <TableHead>Customer</TableHead>
                                 <TableHead>Factory</TableHead>
                                 <TableHead>Comments</TableHead>
-                                <TableHead>Created</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -543,9 +542,6 @@ const StyleCycle = () => {
                                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                                 {style.comments_count || 0}
                                             </span>
-                                        </TableCell>
-                                        <TableCell className="text-gray-500 text-sm">
-                                            {new Date(style.created_at).toLocaleDateString()}
                                         </TableCell>
                                     </TableRow>
                                 ))

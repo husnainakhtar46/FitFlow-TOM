@@ -15,11 +15,11 @@ class Command(BaseCommand):
         current_date = timezone.now().date().replace(day=1)
         prev_month = current_date - relativedelta(months=1)
 
-        f1, _ = Factory.objects.get_or_create(name='Ar Apparel', defaults={'address': 'Dhaka'})
+        f1, _ = Factory.objects.get_or_create(name='Kamal Ltd', defaults={'address': 'Dhaka'})
         f2, _ = Factory.objects.get_or_create(name='Ombre Apparel', defaults={'address': 'Jakarta'})
         f3, _ = Factory.objects.get_or_create(name='Kasim Textiles', defaults={'address': 'Hanoi'})
 
-        # Ar Apparel (A Grade)
+        # Kamal Ltd (A Grade)
         FactoryRating.objects.get_or_create(
             factory=f1, month=prev_month,
             defaults={'total_dev_samples': 10, 'total_dev_iterations': 12, 'dev_iteration_ratio': 1.2,
